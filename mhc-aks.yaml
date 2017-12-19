@@ -92,10 +92,6 @@ spec:
 
         image: dockeraks.azurecr.io/myhealth.web:latest
 
-        imagePullSecrets:
-        
-        - name: mysecret
-
         imagePullPolicy: Always
 
         ports:

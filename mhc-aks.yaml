@@ -1,15 +1,18 @@
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 
 kind: Deployment
 
 metadata:
 
   name: mhc-back
-
+  labels:
+    app: mhc-back
 spec:
 
   replicas: 1
-
+  selector:
+    matchLabels:
+      app: mhc-back
   template:
 
     metadata:
@@ -43,7 +46,7 @@ metadata:
   name: mhc-back
 
 spec:
-
+  type: ClusterIP
   ports:
 
   - port: 6379
@@ -54,7 +57,7 @@ spec:
 
 ---
 
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 
 kind: Deployment
 
@@ -67,7 +70,7 @@ spec:
   replicas: 1
 
   strategy:
-
+    type: RollingUpdate
     rollingUpdate:
 
       maxSurge: 1
@@ -75,7 +78,9 @@ spec:
       maxUnavailable: 1
 
   minReadySeconds: 5 
-
+  selector:
+    matchLabels:
+      app: mhc-front
   template:
 
     metadata:

@@ -1,8 +1,3 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - none
 
@@ -10,160 +5,174 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  # Agent VM image name
-  vmImageName: 'ubuntu-latest'
-  subscription : 'serviceconnectionname'  #replace with your service connection name
-  SQLserver: 'nextopssqls99.database.windows.net'
+  ACR: 'xxxxxx.azurecr.io'
+  SQLserver: 'xxxxx.database.windows.net'
   DatabaseName: 'mhcdb'
-  SQLuser: 'sqladmin'
-  SQLpassword: 'P2ssw0rd1234'
-  ACR: 'nextopsacr99.azurecr.io'
 
 stages:
 - stage: Build
-  displayName: Build stage
-  jobs:  
+  displayName: AKS Build Stage
+  jobs:
   - job: Build
-    displayName: Build
+    displayName:  Build
     pool:
-      vmImage: $(vmImageName)
+      vmImage: 'ubuntu-latest'
     steps:
-    - task: qetza.replacetokens.replacetokens-task.replacetokens@5
-      displayName: 'Replace tokens in appsettings.json'
+    - task: AzureKeyVault@2
       inputs:
-        rootDirectory: '$(build.sourcesdirectory)/src/MyHealth.Web'
-        targetFiles: appsettings.json
-        tokenPattern: rm
-        escapeType: none
-
-    - task: qetza.replacetokens.replacetokens-task.replacetokens@5
-      displayName: 'Replace tokens in mhc-aks.yaml'
+        azureSubscription: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+        KeyVaultName: 'xxxxxxxxxxx'
+        SecretsFilter: '*'
+        RunAsPreJob: true
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+    - task: TerraformTaskV2@2
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(build.sourcesdirectory)/env'
+        backendServiceArm: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+        backendAzureRmResourceGroupName: 'NextOps'
+        backendAzureRmStorageAccountName: 'xxxxxxxxxxxx'
+        backendAzureRmContainerName: 'terraform'
+        backendAzureRmKey: 'DEV/aks.dev.tf'
+    - task: TerraformTaskV2@2
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(build.sourcesdirectory)/env'
+        commandOptions: '--auto-approve'
+        environmentServiceNameAzureRM: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+    - task: replacetokens@5
       inputs:
         rootDirectory: '$(build.sourcesdirectory)'
         targetFiles: 'mhc-aks.yaml'
-        tokenPattern: rm
-        escapeType: none
-
-    - task: DockerCompose@0
-      displayName: 'Run services'
+        encoding: 'auto'
+        tokenPattern: 'rm'
+        writeBOM: true
+        actionOnMissing: 'warn'
+        keepToken: false
+        actionOnNoFiles: 'continue'
+        enableTransforms: false
+        enableRecursion: false
+        useLegacyPattern: false
+        enableTelemetry: true
+    - task: replacetokens@5
       inputs:
-        azureSubscription: $(subscription)
-        azureContainerRegistry: '{"loginServer":"nextopsacr99.azurecr.io", "id" : "/subscriptions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx/resourceGroups/NextOps/providers/Microsoft.ContainerRegistry/registries/nextopsacr99"}'
-        dockerComposeFile: 'docker-compose.ci.build.yml'
+        rootDirectory: '$(build.sourcesdirectory)/src/MyHealth.Web/'
+        targetFiles: 'appsettings.json'
+        encoding: 'auto'
+        tokenPattern: 'rm'
+        writeBOM: true
+        actionOnMissing: 'warn'
+        keepToken: false
+        actionOnNoFiles: 'continue'
+        enableTransforms: false
+        enableRecursion: false
+        useLegacyPattern: false
+        enableTelemetry: true
+    - task: DockerCompose@0
+      inputs:
+        containerregistrytype: 'Azure Container Registry'
+        azureSubscription: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+        azureContainerRegistry: '{"loginServer":"xxxxxxxxxxxxx.azurecr.io", "id" : "/subscriptions/xxxx-xxxx-xxxxxxx-xxxxxx-xxxx/resourceGroups/AKSRG15/providers/Microsoft.ContainerRegistry/registries/xxxxxxxxxxxxx"}'
+        dockerComposeFile: '$(build.sourcesdirectory)/docker-compose.ci.build.yml'
+        dockerComposeFileArgs: 'DOCKER_BUILD_SOURCE='
         action: 'Run services'
         detached: false
-
     - task: DockerCompose@0
-      displayName: 'Build services'
       inputs:
-        azureSubscription: $(subscription)
-        azureContainerRegistry: '{"loginServer":"nextopsacr99.azurecr.io", "id" : "/subscriptions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx/resourceGroups/NextOps/providers/Microsoft.ContainerRegistry/registries/nextopsacr99"}'
+        containerregistrytype: 'Azure Container Registry'
+        azureSubscription: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+        azureContainerRegistry: '{"loginServer":"xxxxxxxxxxxxx.azurecr.io", "id" : "/subscriptions/xxxx-xxxx-xxxxxxx-xxxxxx-xxxx/resourceGroups/AKSRG15/providers/Microsoft.ContainerRegistry/registries/xxxxxxxxxxxxx"}'
         dockerComposeFile: 'docker-compose.yml'
         dockerComposeFileArgs: 'DOCKER_BUILD_SOURCE='
         action: 'Build services'
-        additionalImageTags: '$(Build.BuildId)'
-
     - task: DockerCompose@0
-      displayName: 'Push services'
       inputs:
-        azureSubscription: $(subscription)
-        azureContainerRegistry: '{"loginServer":"nextopsacr99.azurecr.io", "id" : "/subscriptions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx/resourceGroups/NextOps/providers/Microsoft.ContainerRegistry/registries/nextopsacr99"}'
+        containerregistrytype: 'Azure Container Registry'
+        azureSubscription: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+        azureContainerRegistry: '{"loginServer":"xxxxxxxxxxxxx.azurecr.io", "id" : "/subscriptions/xxxx-xxxx-xxxxxxx-xxxxxx-xxxx/resourceGroups/AKSRG15/providers/Microsoft.ContainerRegistry/registries/xxxxxxxxxxxxx"}'
         dockerComposeFile: 'docker-compose.yml'
         dockerComposeFileArgs: 'DOCKER_BUILD_SOURCE='
         action: 'Push services'
-        additionalImageTags: '$(Build.BuildId)'
-
     - task: DockerCompose@0
-      displayName: 'Lock services'
       inputs:
-        azureSubscription: $(subscription)
-        azureContainerRegistry: '{"loginServer":"nextopsacr99.azurecr.io", "id" : "/subscriptions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxx/resourceGroups/NextOps/providers/Microsoft.ContainerRegistry/registries/nextopsacr99"}'
+        containerregistrytype: 'Azure Container Registry'
+        azureSubscription: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+        azureContainerRegistry: '{"loginServer":"xxxxxxxxxxxxx.azurecr.io", "id" : "/subscriptions/xxxx-xxxx-xxxxxxx-xxxxxx-xxxx/resourceGroups/AKSRG15/providers/Microsoft.ContainerRegistry/registries/xxxxxxxxxxxxx"}'
         dockerComposeFile: 'docker-compose.yml'
         dockerComposeFileArgs: 'DOCKER_BUILD_SOURCE='
         action: 'Lock services'
-
+        outputDockerComposeFile: '$(Build.StagingDirectory)/docker-compose.yml'
     - task: CopyFiles@2
-      displayName: 'Copy Files'
       inputs:
         SourceFolder: '$(build.sourcesdirectory)'
         Contents: |
           **/mhc-aks.yaml
           **/*.dacpac
-        TargetFolder: '$(Build.ArtifactStagingDirectory)'
-
+        TargetFolder: '$(build.artifactstagingdirectory)'
     - task: PublishBuildArtifacts@1
-      displayName: 'Publish Artifact'
       inputs:
-        ArtifactName: deploy
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
 
-- stage: Dev
-  displayName: Dev stage
+- stage: DB
+  displayName: DB Stage
   dependsOn: Build
   condition: succeeded('Build')
   jobs:
-  - deployment: DB 
-    displayName: 'DB Deployment'
-    environment: 'development'
-    pool: 
-      vmImage: 'windows-2019'
-    strategy:
-      runOnce:
-        deploy:
+    - deployment: DB
+      displayName: 'DB Deployment'
+      environment: 'dev'
+      pool:
+        vmImage: 'windows-2019'
+      strategy:
+       runOnce:
+         deploy:
           steps:
           - task: SqlAzureDacpacDeployment@1
-            displayName: 'Execute Azure SQL : DacpacTask'
             inputs:
-              azureSubscription: $(subscription)
+              azureSubscription: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
               AuthenticationType: 'server'
-              ServerName: '$(SQLserver)'
-              DatabaseName: '$(DatabaseName)'
-              SqlUsername: '$(SQLuser)'
-              SqlPassword: '$(SQLpassword)'
+              ServerName: 'xxxxxxxxxxxxx.database.windows.net'
+              DatabaseName: 'mhcdb'
+              SqlUsername: 'xxxxxxxxxxx'
+              SqlPassword: 'xxxxxxxxx'
               deployType: 'DacpacTask'
               DeploymentAction: 'Publish'
-              DacpacFile: '$(Agent.BuildDirectory)/**/*.dacpac'
+              DacpacFile: '$(pipeline.workspace)/**/*.dacpac'
               IpDetectionMethod: 'IPAddressRange'
               StartIpAddress: '0.0.0.0'
               EndIpAddress: '255.255.255.255'
 
-  - deployment: AKS
-    displayName: 'AKS Deployment'
-    environment: 'development'
-    pool: 
-      vmImage: $(vmImageName)
-    strategy:
-      runOnce:
-        deploy:
+- stage: Deploy
+  displayName: AKS Stage
+  dependsOn: DB
+  condition: succeeded('DB')
+  jobs:
+    - deployment: AKS
+      displayName: 'AKS Deployment'
+      environment: 'dev'
+      pool:
+        vmImage: 'ubuntu-latest'
+      strategy:
+       runOnce:
+         deploy:
           steps:
           - task: Kubernetes@1
-            displayName: 'Create Deployments & Services in AKS'
             inputs:
               connectionType: 'Azure Resource Manager'
-              azureSubscriptionEndpoint: $(subscription)
-              azureResourceGroup: 'NextOps'
-              kubernetesCluster: 'NextOpsAKS01'
+              azureSubscriptionEndpoint: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+              azureResourceGroup: 'xxxxxxxxxxxx'
+              kubernetesCluster: 'xxxxxxxxx'
               command: 'apply'
               useConfigurationFile: true
-              configuration: '$(Agent.BuildDirectory)/deploy/mhc-aks.yaml'
+              configuration: '$(pipeline.workspace)/drop/mhc-aks.yaml'
               secretType: 'dockerRegistry'
               containerRegistryType: 'Azure Container Registry'
-              azureSubscriptionEndpointForSecrets: $(subscription)
-              azureContainerRegistry: '$(ACR)'
-              secretName: 'mysecretkey'
-              versionSpec: '1.8.1'
-              checkLatest: true
-          
-          - task: Kubernetes@1
-            displayName: 'Update image in AKS'
-            inputs:
-              connectionType: 'Azure Resource Manager'
-              azureSubscriptionEndpoint: $(subscription)
-              azureResourceGroup: NextOps
-              kubernetesCluster: NextOpsAKS01
-              command: set
-              arguments: 'image deployments/mhc-front mhc-front=$(ACR)/myhealth.web:$(Build.BuildId)'
-              azureSubscriptionEndpointForSecrets: $(subscription)
-              azureContainerRegistry: '$(ACR)'
-              secretName: mysecretkey
-              versionSpec: 1.8.1
-              checkLatest: true
+              azureSubscriptionEndpointForSecrets: 'Pay-As-You-Go(xxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+              azureContainerRegistry: 'xxxxxxxxx.azurecr.io'
+              secretName: 'acrsecret'

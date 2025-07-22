@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=3.80.0"
+      version = "=4.37.0"
     }
   }
   backend "azurerm" {
@@ -11,6 +11,7 @@ terraform {
 
 provider "azurerm" {
   features {}
+  skip_provider_registration = true
 }
 
 resource "azurerm_resource_group" "rgname" {
@@ -59,16 +60,16 @@ resource "azurerm_role_assignment" "aks2acr" {
 }
 
 resource "azurerm_mssql_server" "sqlserver" {
-  name                = "xxxxxxxxxx"
+  name                = "__SQLserver__"
   resource_group_name = azurerm_resource_group.rgname.name
   location            = azurerm_resource_group.rgname.location
   version             = "12.0"
-  administrator_login          = "xxxxxxxxxx"
-  administrator_login_password = "xxxxxxxxxx"
+  administrator_login          = "__SQLUser__"
+  administrator_login_password = "__SQLPass__"
 }
 
 resource "azurerm_mssql_database" "sqldb" {
-  name                = "mhcdb"
+  name                = "__DatabaseName__"
   server_id           = azurerm_mssql_server.sqlserver.id
   collation           = "SQL_Latin1_General_CP1_CI_AS"
   max_size_gb         = 1

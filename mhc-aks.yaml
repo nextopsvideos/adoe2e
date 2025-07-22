@@ -56,7 +56,7 @@ spec:
     spec:
       containers:
       - name: mhc-front
-        image: __ACR__/myhealth.web:latest
+        image: __ACRName__/myhealth.web:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80
